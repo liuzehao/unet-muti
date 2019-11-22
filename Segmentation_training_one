@@ -8,7 +8,7 @@ from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, Conv2DTranspo
     BatchNormalization
 from keras.optimizers import Adam
 from keras.layers.convolutional import UpSampling2D, Conv2D
-from keras.callbacks import EarlyStopping,ModelCheckpoint
+from keras.callbacks import EarlyStopping,ModelCheckpoint,TensorBoard
 from keras import backend as K
 from keras.layers.advanced_activations import LeakyReLU, ReLU
 from keras.layers.core import Lambda
@@ -20,10 +20,12 @@ lr = 0.001
 EPOCH = 3
 X_CHANNEL = 3  # training data channel
 Y_CHANNEL = 1  # test data channel
-X_NUM = 1916  # your traning data number
-
+X_NUM = 1532  # your traning data number
+X_val=384
 pathX = './images/'    #change your file path
 pathY = './annotations/'    #change your file path
+pathX_val='./validation/images/'
+pathY_val='./validation/annotations/'
 seed = 42
 random.seed = seed
 np.random.seed = seed
@@ -38,11 +40,11 @@ def get_all_files(bg_path):
     files.sort(key=lambda x: int(x[-8:-4]))#排序从小到大
     return files
 #data processing
-def generator(pathX, pathY,BATCH_SIZE):
+def generator(pathX, pathY,BATCH_SIZE,NUM):
     while 1:
         X_train_files = get_all_files(pathX)
         Y_train_files = get_all_files(pathY)
-        a = (np.arange(1, X_NUM))
+        a = (np.arange(1, NUM))
         # print(a)
         # cnt = 0
         X = []
@@ -75,7 +77,6 @@ def generator(pathX, pathY,BATCH_SIZE):
         X = np.array(X)
         Y = np.array(Y)
         yield X, Y
-
  #creat unet network
 inputs = Input((PIXEL, PIXEL, 3))
 s = Lambda(lambda x: x / 255) (inputs)
@@ -146,17 +147,14 @@ outputs = Conv2D(1, (1, 1), activation='sigmoid') (conv12)
 model = Model(input=inputs, output=outputs)
 # print(model.summary())
 model.compile(optimizer=Adam(lr=1e-3), loss='binary_crossentropy', metrics=['accuracy'])
-filepath="weights-improvement-{epoch:02d}.hdf5"
+filepath="weights-improvement-best.hdf5"
 checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True,
 mode='max')
-callbacks_list = [checkpoint]
-history = model.fit_generator(generator(pathX, pathY,BATCH_SIZE),
-                              steps_per_epoch=60, nb_epoch=EPOCH, callbacks=callbacks_list)
+
+callbacks_list = [checkpoint,TensorBoard(log_dir='log')]
+history = model.fit_generator(generator(pathX, pathY,BATCH_SIZE,X_NUM),
+                              steps_per_epoch=600,nb_epoch=EPOCH,validation_data=generator(pathX_val, pathY_val,BATCH_SIZE,X_val),validation_steps=max(1, X_val//BATCH_SIZE),callbacks=callbacks_list)
 end_time = datetime.datetime.now().strftime('%Y-%m-%d  %H:%M:%S')
 
  #save your training model
-model.save(r'./V1_828.h5')        
-
-#save your loss data
-mse = np.array((history.history['loss']))
-np.save(r'./V1_828.npy', mse)      
+model.save(r'./end.h5')          
